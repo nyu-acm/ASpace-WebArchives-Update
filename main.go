@@ -30,7 +30,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-	domains = []string{"dlib.nyu.edu", "webarchives.cdlib.org", "wayback.archive-it.org", "archive-it.org"}
+	domains = []string{"webarchives.cdlib.org", "wayback.archive-it.org", "archive-it.org"}
 	logfilename := fmt.Sprintf("webarchives-update-%s-repository-%d.log", environment, repository)
 	fmt.Println("Running, logging to", logfilename)
 	f, err := os.OpenFile(logfilename, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
