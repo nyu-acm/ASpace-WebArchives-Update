@@ -87,10 +87,10 @@ func main() {
 			if test == false {
 				msg, err := client.UpdateDigitalObject(repository, doId, do)
 				if err != nil {
-					log.Printf("ERROR", err)
-					break
+					log.Printf("ERROR %s", err)
+
 				}
-				log.Printf("INFO", msg)
+				log.Printf("INFO %s", msg)
 			}
 		} else {
 			log.Printf("INFO %s conforms to existing rules", do.URI)
