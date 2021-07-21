@@ -28,12 +28,23 @@ func init() {
 	flag.BoolVar(&test, "test", false, "test")
 }
 
+type DoInfo struct {
+	DoID 	int
+	RepoID 	int
+}
+
+type FileVersionInfo struct {
+	URI string
+	FVURI string
+	FVUse string
+}
+
 func main() {
 	flag.Parse()
 	domains = []string{"webarchives.cdlib.org", "wayback.archive-it.org", "archive-it.org"}
 	logfilename := fmt.Sprintf("webarchives-update-%s-repository-%d.log", environment, repository)
 	fmt.Println("Running, logging to", logfilename)
-	f, err := os.OpenFile(logfilename, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	f, err := os.OpenFile(logfilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("error creating logfile: %v", err)
 	}
@@ -48,11 +59,90 @@ func main() {
 	}
 	log.Println("INFO using go-aspace", aspace.LibraryVersion)
 
-	doIds, err := client.GetDigitalObjectIDs(repository)
-	if err != nil {
-		log.Fatal(err)
+
+	doInfos := []DoInfo{}
+
+	for _, i := range []int{2,3,6} {
+		doids, err := client.GetDigitalObjectIDs(i)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _,doid := range doids {
+			doInfos = append(doInfos, DoInfo{doid, i})
+		}
 	}
 
+	doChunks := chunkDos(doInfos)
+
+	fvChannel := make(chan []FileVersionInfo)
+
+	for i := range doChunks {
+		go getDOs(doChunks[i], fvChannel, i+1)
+	}
+
+	var results []FileVersionInfo
+
+	for range doChunks {
+		chunk := <- fvChannel
+		log.Println("INFO Adding", len(chunk), "fvs to fv list")
+		results = append(results, chunk...)
+	}
+
+	for i := range results {
+		fmt.Println(results[i])
+	}
+}
+
+func getDOs(chunk []DoInfo, fvChannel chan []FileVersionInfo, wID int) {
+	fvinfos := []FileVersionInfo{}
+	fmt.Println("starting worker", wID)
+	for _,do := range chunk {
+		d, err := client.GetDigitalObject(do.RepoID, do.DoID)
+		if err != nil {
+			log.Println("ERROR", err.Error())
+			continue
+		}
+
+		if len(d.FileVersions) > 0 {
+			for i := range d.FileVersions {
+				fv := d.FileVersions[i]
+				u, err := url.Parse(strings.TrimSpace(fv.FileURI))
+				if err != nil {
+					fmt.Println("Error", d.URI, err.Error())
+					continue
+				}
+				fvinfos = append(fvinfos, FileVersionInfo{
+					URI:  	d.URI,
+					FVURI: 	u.Host,
+					FVUse: 	fv.UseStatement,
+				})
+			}
+		}
+
+	}
+	fvChannel <- fvinfos
+}
+
+
+func chunkDos(doinfos []DoInfo) [][]DoInfo {
+	var divided [][]DoInfo
+
+	chunkSize := (len(doinfos) + 7) / 8
+
+	for i := 0; i < len(doinfos); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(doinfos) {
+			end = len(doinfos)
+		}
+
+		divided = append(divided, doinfos[i:end])
+	}
+	return divided
+}
+
+	/*
 	for _, doId := range doIds {
 
 		do, err := client.GetDigitalObject(repository, doId)
@@ -106,3 +196,5 @@ func contains(s string) bool {
 	}
 	return false
 }
+
+	 */
